@@ -29,11 +29,26 @@ export class JsonDbService<T> {
     );
   }
 
-  async getData(key: string): Promise<T> {
-    return await this.db.getData(key);
+  async findOne(key: string): Promise<T> {
+    const result = await this.db.getData(key);
+
+    if (Array.isArray(result)) {
+      return result[0];
+    }
+    return result;
+  }
+
+  async findMany(key: string): Promise<T[]> {
+    const result = await this.db.getData(key);
+
+    if (Array.isArray(result)) {
+      return result;
+    }
+    return [result];
   }
 
   async saveData(key: string, data: T): Promise<void> {
+    console.log(key, data);
     await this.db.push('/test1', 'super test');
 
     // When pushing new data for a DataPath that doesn't exist, it automatically creates the hierarchy
