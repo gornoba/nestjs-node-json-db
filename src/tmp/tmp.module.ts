@@ -5,7 +5,7 @@ import { Tmp1Entity } from 'src/entity/tmp1.entity';
 import { TmpController } from './tmp.controller';
 
 @Module({
-  imports: [TmpDatabaseModule.forFeature([Tmp1Entity])],
+  // imports: [TmpDatabaseModule.forFeature([Tmp1Entity])],
   controllers: [TmpController],
   providers: [TmpService],
 })

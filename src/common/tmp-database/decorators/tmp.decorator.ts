@@ -9,6 +9,7 @@ export function TmpEntity(options?: { name?: string; path?: string }) {
         name: options?.name || target.name,
         path: options?.path || null,
         className: target.name,
+        entity: target,
       },
       target,
     );
@@ -25,9 +26,6 @@ export function TmpPrimaryKey(options?: { type: 'increment' | 'uuid' }) {
 
     if (!classMetadata) {
       classMetadata = {
-        name: null,
-        path: null,
-        className: entityName,
         primaryKey: null,
       };
     }
@@ -35,8 +33,86 @@ export function TmpPrimaryKey(options?: { type: 'increment' | 'uuid' }) {
     classMetadata.primaryKey = {
       propertyName: propertyKey,
       type: options?.type || 'increment',
-      classsName: classMetadata.className,
+      classsName: entityName,
     };
+
+    Reflect.defineMetadata(
+      `${entityName}:class`,
+      classMetadata,
+      target.constructor,
+    );
+  };
+}
+
+export function TmpManyToOne<T>(
+  typeFunctionOrTarget: (type?: any) => new () => T,
+  inverseSide: (object: T) => any,
+  joinId: string,
+) {
+  return function (target: any, propertyKey: string) {
+    const entityName = target.constructor?.name;
+    let classMetadata = Reflect.getMetadata(
+      `${entityName}:class`,
+      target.constructor,
+    );
+
+    if (!classMetadata) {
+      classMetadata = {
+        manyToOne: [],
+      };
+    } else if (classMetadata && !classMetadata?.manyToOne) {
+      classMetadata.manyToOne = [];
+    }
+
+    const functionStr = typeFunctionOrTarget.toString();
+    const classNameMatch = functionStr.match(/\.(.+)/);
+    const className = classNameMatch ? classNameMatch[1] : null;
+
+    classMetadata.manyToOne.push({
+      propertyName: propertyKey,
+      entity: () => typeFunctionOrTarget(),
+      joinClassName: className,
+      joinProperty: inverseSide.toString(),
+      joinId,
+    });
+
+    Reflect.defineMetadata(
+      `${entityName}:class`,
+      classMetadata,
+      target.constructor,
+    );
+  };
+}
+
+export function TmpOneToMany<T>(
+  typeFunctionOrTarget: (type?: any) => new () => T,
+  inverseSide: (object: T) => any,
+) {
+  return function (target: any, propertyKey: string) {
+    const entityName = target.constructor?.name;
+    let classMetadata = Reflect.getMetadata(
+      `${entityName}:class`,
+      target.constructor,
+    );
+
+    if (!classMetadata) {
+      classMetadata = {
+        oneToMany: [],
+      };
+    } else if (classMetadata && !classMetadata?.oneToMany) {
+      classMetadata.oneToMany = [];
+    }
+
+    const functionStr = typeFunctionOrTarget.toString();
+    const classNameMatch = functionStr.match(/\.(.+)/);
+    const className = classNameMatch ? classNameMatch[1] : null;
+
+    classMetadata.oneToMany.push({
+      propertyName: propertyKey,
+      entity: () => typeFunctionOrTarget(),
+      joinClassName: className,
+      joinProperty: inverseSide.toString(),
+    });
 
     Reflect.defineMetadata(
       `${entityName}:class`,

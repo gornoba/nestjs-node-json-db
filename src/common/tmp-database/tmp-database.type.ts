@@ -16,4 +16,35 @@ export interface TmpEntityOptions {
   path?: string;
   className: string;
   primaryKey?: TmpPrimaryKeyOptions;
+  entity: new () => any;
+  manyToOne?: {
+    propertyName: string;
+    joinClassName: string;
+    joinProperty: string;
+    entity: any;
+    joinId: string;
+  }[];
+  oneToMany?: {
+    propertyName: string;
+    joinClassName: string;
+    joinProperty: string;
+    entity: any;
+  }[];
 }
+export type FindOptionsRelationsProperty<Property> = Property extends Promise<
+  infer I
+>
+  ? FindOptionsRelationsProperty<NonNullable<I>> | boolean
+  : Property extends Array<infer I>
+  ? FindOptionsRelationsProperty<NonNullable<I>> | boolean
+  : Property extends boolean
+  ? never
+  : Property extends object
+  ? FindOptionsRelations<Property> | boolean
+  : boolean;
+
+export type FindOptionsRelations<Entity> = {
+  [P in keyof Entity]?: P extends 'toString'
+    ? unknown
+    : FindOptionsRelationsProperty<NonNullable<Entity[P]>>;
+};

@@ -1,7 +1,9 @@
 import {
   TmpEntity,
+  TmpOneToMany,
   TmpPrimaryKey,
 } from '../common/tmp-database/decorators/tmp.decorator';
+import { Tmp2Entity } from './tmp2.entity';
 
 // 클래스 수준 데코레이터 적용
 @TmpEntity({ name: 'tmp1' })
@@ -20,6 +22,9 @@ export class Tmp1Entity {
   //   pattern: /^[a-zA-Z가-힣\s]+$/,
   // })
   name: string;
+
+  @TmpOneToMany(() => Tmp2Entity, (tmp2) => tmp2.tmp1)
+  tmp2: Tmp2Entity[];
 
   // 메서드 수준 데코레이터 적용
   // @TmpMethodDecorator({ log: true, cache: true })

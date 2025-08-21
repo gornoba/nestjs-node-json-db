@@ -32,7 +32,6 @@ export class TmpDatabaseModule {
         provide: 'TMP_DB_PATH',
         useValue: path,
       },
-      TmpEntityManagerService,
       {
         provide: INJECT_JSON_DB,
         useClass: TmpEntityManagerService,

@@ -3,7 +3,11 @@ import { Config, JsonDB } from 'node-json-db';
 import { TmpDatabaseModule } from './tmp-database.module';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { TmpEntityOptions, TmpPrimaryKeyOptions } from './tmp-database.type';
+import {
+  FindOptionsRelations,
+  TmpEntityOptions,
+  TmpPrimaryKeyOptions,
+} from './tmp-database.type';
 
 @Injectable()
 export class TmpEntityManagerService {
@@ -19,9 +23,14 @@ export class TmpEntityManagerService {
 
   async find<T>(
     entity: new () => T,
-    callback?: (a: T) => boolean,
+    options?: {
+      callback?: (a: T) => boolean;
+      releation?: FindOptionsRelations<T>;
+    },
   ): Promise<T[]> {
-    const { db, name } = this.getDb(entity);
+    const { callback, releation } = options || {};
+    const { db, name, manyToOne, oneToMany, primaryKey } = this.getDb(entity);
+
     const exists = await db.exists(`data/${name}`);
 
     if (!exists) {
@@ -34,14 +43,78 @@ export class TmpEntityManagerService {
     }
 
     const data = await db.getData(`data/${name}`);
+
+    if (releation) {
+      if (oneToMany && oneToMany.length) {
+        for (const item of oneToMany) {
+          const isReleation = Object.entries(releation).every(
+            ([key, value]) => {
+              if (key === item.propertyName) {
+                return value;
+              }
+              return false;
+            },
+          );
+
+          if (isReleation) {
+            const joinEntity = item.entity();
+            const { primaryKey: JoinPrimaryKey } = this.getDb(joinEntity);
+            const isObject = this.isObject(releation[item.propertyName]);
+
+            for (const dataItem of data) {
+              const joinData = await this.find(joinEntity, {
+                callback: (a) =>
+                  a[JoinPrimaryKey.propertyName] ===
+                  dataItem[primaryKey.propertyName],
+                ...(isObject && { releation: releation[item.propertyName] }),
+              });
+              dataItem[item.propertyName] = joinData;
+            }
+          }
+        }
+      }
+
+      if (manyToOne && manyToOne.length) {
+        for (const item of manyToOne) {
+          const isReleation = Object.entries(releation).every(
+            ([key, value]) => {
+              if (key === item.propertyName) {
+                return value;
+              }
+              return false;
+            },
+          );
+
+          if (isReleation) {
+            const entity = item.entity();
+            const { primaryKey: JoinPrimaryKey } = this.getDb(entity);
+            const isObject = this.isObject(releation[item.propertyName]);
+
+            for (const dataItem of data) {
+              const joinKey = dataItem[item.joinId];
+              const joinData = await this.findOne(entity, {
+                callback: (a) => a[JoinPrimaryKey.propertyName] === joinKey,
+                ...(isObject && { releation: releation[item.propertyName] }),
+              });
+              dataItem[item.propertyName] = joinData;
+            }
+          }
+        }
+      }
+    }
+
     return data as T[];
   }
 
   async findOne<T>(
     entity: new () => T,
-    callback?: (a: T) => boolean,
+    options?: {
+      callback: (a: T) => boolean;
+      releation?: FindOptionsRelations<T>;
+    },
   ): Promise<T> {
-    const { db, name } = this.getDb(entity);
+    const { callback, releation } = options || {};
+    const { db, name, manyToOne, oneToMany, primaryKey } = this.getDb(entity);
 
     const exists = await db.exists(`data/${name}`);
 
@@ -50,6 +123,62 @@ export class TmpEntityManagerService {
     }
 
     const data = await db.find(`data/${name}`, callback);
+
+    if (releation) {
+      if (oneToMany && oneToMany.length) {
+        for (const item of oneToMany) {
+          const isReleation = Object.entries(releation).every(
+            ([key, value]) => {
+              if (key === item.propertyName) {
+                return value;
+              }
+              return false;
+            },
+          );
+
+          if (isReleation) {
+            const joinEntity = item.entity();
+            const { primaryKey: JoinPrimaryKey } = this.getDb(joinEntity);
+            const isObject = this.isObject(releation[item.propertyName]);
+
+            const joinData = await this.find(joinEntity, {
+              callback: (a) =>
+                a[JoinPrimaryKey.propertyName] ===
+                data[primaryKey.propertyName],
+              ...(isObject && { releation: releation[item.propertyName] }),
+            });
+            data[item.propertyName] = joinData;
+          }
+        }
+      }
+
+      if (manyToOne && manyToOne.length) {
+        for (const item of manyToOne) {
+          const isReleation = Object.entries(releation).every(
+            ([key, value]) => {
+              if (key === item.propertyName) {
+                return value;
+              }
+              return false;
+            },
+          );
+
+          if (isReleation) {
+            const entity = item.entity();
+            const { primaryKey: JoinPrimaryKey } = this.getDb(entity);
+            const isObject = this.isObject(releation[item.propertyName]);
+
+            const joinKey = data[item.joinId];
+            const joinData = await this.findOne(entity, {
+              callback: (a) => a[JoinPrimaryKey.propertyName] === joinKey,
+              ...(isObject && { releation: releation[item.propertyName] }),
+            });
+            data[item.propertyName] = joinData;
+          }
+        }
+      }
+    }
+
     return data as T;
   }
 
@@ -230,10 +359,10 @@ export class TmpEntityManagerService {
       `${constructorName}:class`,
       target,
     ) as TmpEntityOptions;
-    const { name, path, primaryKey } = tmpInfo;
+    const { name, path, primaryKey, manyToOne, oneToMany } = tmpInfo;
     const tmpPath = path ? join(this.dbPath, path) : this.dbPath;
     const db = new JsonDB(new Config(join(tmpPath, name), true, false, '/'));
-    return { db, name, primaryKey };
+    return { db, name, primaryKey, manyToOne, oneToMany };
   }
 
   private generateId<T>(
@@ -247,5 +376,9 @@ export class TmpEntityManagerService {
     } else {
       entity[propertyName] = uuidv4();
     }
+  }
+
+  private isObject(value: any) {
+    return typeof value === 'object' && !Array.isArray(value) && value !== null;
   }
 }
