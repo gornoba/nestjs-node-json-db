@@ -10,7 +10,8 @@ export class UserService {
   ) {}
 
   async getData(key: string) {
-    return await this.userDb.findOne(key);
+    const result = await this.userDb.findMany(key);
+    return result;
   }
 
   async saveData(key: string, data: UserEntity) {

@@ -1,10 +1,9 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Global, Module } from '@nestjs/common';
 import { JsonDbService } from './json-db.service';
 import { Entity } from 'src/entity/entity.type';
 
-@Module({
-  providers: [],
-})
+@Global()
+@Module({})
 export class JsonDbModule {
   static forRoot(path: { path: string }): DynamicModule {
     return {
@@ -16,7 +15,6 @@ export class JsonDbModule {
         },
       ],
       exports: ['DB_PATH'],
-      global: true, // 전역 모듈로 설정하여 다른 모듈에서 접근 가능하게 함
     };
   }
 
@@ -24,7 +22,8 @@ export class JsonDbModule {
     const providers = entities.map((entity) => ({
       provide: entity,
       useFactory: (path: { path: string }) => {
-        return new JsonDbService<typeof entity>(path, entity);
+        const tmp = new JsonDbService<typeof entity>(path, entity);
+        return tmp;
       },
       inject: ['DB_PATH'],
     }));
@@ -32,7 +31,7 @@ export class JsonDbModule {
     return {
       module: JsonDbModule,
       providers,
-      exports: entities, // entity.name 대신 entity 자체를 export
+      exports: entities,
     };
   }
 }
